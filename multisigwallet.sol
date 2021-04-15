@@ -4,22 +4,21 @@ pragma abicoder v2;
 contract Wallet {
     address[] public owners;
     uint limit;
-    // mapping(address => uint) balance;
     uint balance;
     
     struct Transfer {
-        address recipient;
+        address initiator;
+        address payable recipient;
         uint amount;
         uint numApprovals;
         bool completed;
     }
     
+    // Array of all transferRequests. The index is the transferID.
     Transfer[] transferRequests;
     
-    // map approver to transferRequest (index in array)
-    // double mapping of approver to transfer ID to approval status
-    mapping(address => mapping(uint => bool)) approvals;
-    // mapping[address][transferID] => true/false
+    // Double mapping of transferID to approver address to boolean approval status.
+    mapping(uint => mapping(address => bool)) approvals;
     
     constructor() {
         owners = [0x5B38Da6a701c568545dCfcB03FcB875f56beddC4, 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2, 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db];
@@ -32,31 +31,50 @@ contract Wallet {
         _;
     }
     
-    function deposit() public payable returns (uint) {
+    /*
+     * Any of the contract `owners` can deposit to the contract balance.
+     */
+    function deposit() public payable onlyOwner returns (uint) {
         balance += msg.value;
         return balance;
     }
     
-    function withdraw(address recipient, uint amount) public onlyOwner returns (uint) {
-        require(amount <= balance, "Balance not sufficient");
-        // Should the withdrawer count as an approver? Assume not.
-        Transfer memory transferRequest = Transfer(recipient, amount, 0, false);
-    }
-    
-    function transfer(address recipient, uint amount) public {
-        recipient.send(amount);
+    function transfer(address payable recipient, uint amount) public onlyOwner returns (uint) {
+        recipient.transfer(amount);
         balance -= amount;
         return balance;
     }
     
-    function approve(uint transferID) public {
-        require(!approvals[msg.sender][transferID], "This owner has already approved this transfer");
+    /*
+     * Initiates a transfer request, with msg.sender as the initiator.
+     */
+    function withdraw(address payable recipient, uint amount) public onlyOwner returns (uint) {
+        require(amount <= balance, "Insufficient balance");
+        
+        // Should the withdrawer count as an approver? Assume not.
+        Transfer memory transferRequest = Transfer(msg.sender, recipient, amount, 0, false);
+        transferRequests.push(transferRequest);
+        uint transferID = transferRequests.length - 1;
+        
+        return transferID;
+    }
+    
+    /*
+     * Approves a transfer request. The initiator cannot be an approver, and `limit` number
+     * of approvers are required. Once the number of approvers is satisfied, the transfer
+     * is made.
+     */
+    function approve(uint transferID) public onlyOwner {
+        require(msg.sender != transferRequests[transferID].initiator, "Initiator cannot be an approver");
+        require(!approvals[transferID][msg.sender], "This owner has already approved this transfer");
+        
         Transfer memory transferRequest = transferRequests[transferID];
+        approvals[transferID][msg.sender] = true;
         transferRequest.numApprovals += 1;
         
         if (transferRequest.numApprovals >= limit) {
-            transfer(transfer.recipient, transfer.amount);
-            transferRequest.completed == true;
+            transfer(transferRequest.recipient, transferRequest.amount);
+            transferRequest.completed = true;
         }
     }
     
