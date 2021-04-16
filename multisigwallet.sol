@@ -20,14 +20,20 @@ contract Wallet {
     // Double mapping of transferID to approver address to boolean approval status.
     mapping(uint => mapping(address => bool)) approvals;
     
-    constructor() {
-        owners = [0x5B38Da6a701c568545dCfcB03FcB875f56beddC4, 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2, 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db];
-        limit = 2;
+    constructor(address[] memory _owners, uint _limit) {
+        // ["0x5B38Da6a701c568545dCfcB03FcB875f56beddC4", "0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2", "0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db"]
+        owners = _owners;
+        limit = _limit;
     }
     
     modifier onlyOwner {
-        // TODO how to efficiently check for value existence in array?
-        require(msg.sender == owners[0] || msg.sender == owners[1] || msg.sender == owners[2], "Not an owner");
+        bool isOwner = false;
+        for (uint i = 0; i < owners.length; i++) {
+            if (msg.sender == owners[i]) {
+                isOwner = true;
+            }
+        }
+        require(isOwner, "Not an owner");
         _;
     }
     
