@@ -2,7 +2,7 @@ pragma solidity 0.7.5;
 pragma abicoder v2;
 
 contract Wallet {
-    address[] public owners;
+    address[] owners;
     uint limit;
     uint balance;
     
@@ -27,26 +27,36 @@ contract Wallet {
     
     modifier onlyOwner {
         // TODO how to efficiently check for value existence in array?
-        require(msg.sender == owners[0] || msg.sender == owners[1] || msg.sender == owners[2]);
+        require(msg.sender == owners[0] || msg.sender == owners[1] || msg.sender == owners[2], "Not an owner");
         _;
+    }
+    
+    function getBalance() public view returns (uint) {
+        return balance;
+    }
+    
+    function getOwners() public view returns (address[] memory) {
+        return owners;
+    }
+    
+    function getTransfer(uint transferID) public view returns (Transfer memory) {
+        return transferRequests[transferID];
     }
     
     /*
      * Any of the contract `owners` can deposit to the contract balance.
+     * 
+     * Returns new balance.
      */
     function deposit() public payable onlyOwner returns (uint) {
         balance += msg.value;
         return balance;
     }
     
-    function transfer(address payable recipient, uint amount) public onlyOwner returns (uint) {
-        recipient.transfer(amount);
-        balance -= amount;
-        return balance;
-    }
-    
     /*
      * Initiates a transfer request, with msg.sender as the initiator.
+     * 
+     * Returns transferID.
      */
     function withdraw(address payable recipient, uint amount) public onlyOwner returns (uint) {
         require(amount <= balance, "Insufficient balance");
@@ -63,19 +73,30 @@ contract Wallet {
      * Approves a transfer request. The initiator cannot be an approver, and `limit` number
      * of approvers are required. Once the number of approvers is satisfied, the transfer
      * is made.
+     *
+     * Returns true if approved, false if more approvals required.
      */
-    function approve(uint transferID) public onlyOwner {
+    function approve(uint transferID) public onlyOwner returns (bool) {
         require(msg.sender != transferRequests[transferID].initiator, "Initiator cannot be an approver");
         require(!approvals[transferID][msg.sender], "This owner has already approved this transfer");
         
-        Transfer memory transferRequest = transferRequests[transferID];
+        Transfer storage transferRequest = transferRequests[transferID];
         approvals[transferID][msg.sender] = true;
         transferRequest.numApprovals += 1;
         
         if (transferRequest.numApprovals >= limit) {
             transfer(transferRequest.recipient, transferRequest.amount);
             transferRequest.completed = true;
+            return true;
         }
+        
+        return false;
+    }
+    
+    function transfer(address payable recipient, uint amount) private returns (uint) {
+        recipient.transfer(amount);
+        balance -= amount;
+        return balance;
     }
     
 }
