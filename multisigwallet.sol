@@ -83,6 +83,7 @@ contract Wallet {
      * Returns true if approved, false if more approvals required.
      */
     function approve(uint transferID) public onlyOwner returns (bool) {
+        require(!transferRequests[transferID].completed, "Transfer has already been sent");
         require(msg.sender != transferRequests[transferID].initiator, "Initiator cannot be an approver");
         require(!approvals[transferID][msg.sender], "This owner has already approved this transfer");
         
